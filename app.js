@@ -796,6 +796,11 @@ function submitToGoogleSheets() {
         totalAssets: r.playerAssets,
         rank: r.playerRank ?? 1,
 
+        // 網頁「年度生態與經濟營運紀錄表」對應欄位
+        tableEcologicalStatus: (Math.round((r.totalFish / 6000) * 100) < 20) 
+            ? "瀕臨崩潰" 
+            : (Math.round((r.totalFish / 6000) * 100) < 45 ? "過度捕撈" : "健康穩定"),
+
         // AI 競爭對手資產快照
         aiAlphaAssets: r.teamsSnapshot?.[1]?.totalAssets ?? 0,
         aiBetaAssets: r.teamsSnapshot?.[2]?.totalAssets ?? 0,
@@ -818,6 +823,7 @@ function submitToGoogleSheets() {
             fishHealthPct: fishPct,
             institutionEnabled: sim.institution.enabled ? "配額管制制度" : "開放自由競爭",
             statusResult: sim.isGameOver ? (sim.isWon ? "永續冠軍" : "已結算/過度捕撈") : "進行中",
+            gameOverReason: sim.gameOverReason || (sim.isGameOver ? "模擬已結算" : "挑戰進行中，尚未觸發結算通知"),
             totalLoggedYears: yearlyLogs.length
         },
         yearlyLogs: yearlyLogs
