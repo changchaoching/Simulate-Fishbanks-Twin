@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FishBanks: 海洋公地與再生資源管理經營模擬 (Google 試算表連線版)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap');
+        body { font-family: 'Plus Jakarta Sans', 'Noto Sans TC', system-ui, -apple-system, sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #0284c7;
+            cursor: pointer;
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.25);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen antialiased flex flex-col">
+
+    <!-- Top Navigation Bar (Bright Style) -->
+    <header class="border-b border-slate-200 bg-white/95 backdrop-blur sticky top-0 z-50 px-4 py-3 sm:px-6 shadow-sm">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-600 to-blue-600 flex items-center justify-center shadow-md shadow-cyan-500/20 text-white font-black text-xl">
+                    FB
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        FishBanks: 海洋漁業與公地悲劇模擬器
+                        <span class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-mono font-semibold flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Google 試算表連線版
+                        </span>
+                    </h1>
+                    <p class="text-xs text-slate-500">再生資源管理・四國船隊競爭・公地悲劇 vs 制度配額・成績自動登記與個人證書生成</p>
+                </div>
+            </div>
+
+            <!-- Header KPIs & Action -->
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 bg-slate-100/90 px-3.5 py-1.5 rounded-xl border border-slate-200 font-mono text-xs shadow-inner">
+                    <div class="flex items-center gap-1.5 text-slate-700">
+                        <span class="text-slate-400">年度</span>
+                        <span id="kpiYear" class="font-bold text-blue-600 text-sm">第 1 年</span>
+                        <span class="text-slate-400">/ 15</span>
+                    </div>
+                    <div class="h-3 w-px bg-slate-300"></div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-slate-400">全海域魚群</span>
+                        <span id="kpiTotalFish" class="font-bold text-cyan-700">3,500 尾</span>
+                    </div>
+                    <div class="h-3 w-px bg-slate-300"></div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-slate-400">您總資產</span>
+                        <span id="kpiPlayerAssets" class="font-bold text-emerald-600">$2,700</span>
+                    </div>
+                </div>
+
+                <!-- 頂部直接回傳/設定 Webhook 按鈕 -->
+                <button id="btnOpenSubmitModal" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-500/20 flex items-center gap-1.5 transition">
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                    <span>登錄成績至試算表</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main class="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 flex-1 space-y-6">
+
+        <!-- Banner for Game Status / GameOver Settlement -->
+        <div id="gameStatusBanner" class="hidden p-5 rounded-2xl border shadow-sm transition-all duration-300"></div>
+
+        <!-- Upper Row: Two Fishing Grounds & Ecosystem Status -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+            <!-- 1. 沿海漁場 (Coastal Fishery) -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl">🏖️</span>
+                        <div>
+                            <h2 class="font-bold text-slate-900 text-sm">沿海漁場 (Coastal)</h2>
+                            <div class="text-[11px] text-slate-500">近海淺灘・低營運成本</div>
+                        </div>
+                    </div>
+                    <span id="coastalHealthBadge" class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full font-bold border border-emerald-200">健康度 50%</span>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs text-slate-600">
+                        <span>魚群存量 / 承載量：</span>
+                        <strong id="valCoastalFish" class="font-mono text-slate-900">1,000 / 2,000 尾</strong>
+                    </div>
+                    <!-- Progress Bar for Coastal Fish -->
+                    <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
+                        <div id="barCoastalFish" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 50%;"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1.5 text-slate-600">
+                    <div class="flex justify-between"><span>每艘船出海營運成本：</span><strong class="font-mono text-slate-900">$150 / 艘/年</strong></div>
+                    <div class="flex justify-between"><span>全域捕撈船隊總數：</span><strong id="valCoastalShips" class="font-mono text-blue-600">0 艘</strong></div>
+                    <div class="flex justify-between"><span>當前單船捕獲預期：</span><strong id="valCoastalCatchPerShip" class="font-mono text-emerald-600">25.0 尾/艘</strong></div>
+                    <div class="flex justify-between"><span>年淨自然再生量：</span><strong id="valCoastalRegen" class="font-mono text-cyan-700">+140 尾/年</strong></div>
+                </div>
+            </div>
+
+            <!-- 2. 遠洋深海 (Deep Sea Fishery) -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl">🌊</span>
+                        <div>
+                            <h2 class="font-bold text-slate-900 text-sm">遠洋深海 (Deep Sea)</h2>
+                            <div class="text-[11px] text-slate-500">廣大外海・高魚量與高成本</div>
+                        </div>
+                    </div>
+                    <span id="deepSeaHealthBadge" class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full font-bold border border-emerald-200">健康度 62%</span>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs text-slate-600">
+                        <span>魚群存量 / 承載量：</span>
+                        <strong id="valDeepSeaFish" class="font-mono text-slate-900">2,500 / 4,000 尾</strong>
+                    </div>
+                    <!-- Progress Bar for Deep Sea Fish -->
+                    <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
+                        <div id="barDeepSeaFish" class="bg-blue-500 h-full rounded-full transition-all duration-500" style="width: 62.5%;"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1.5 text-slate-600">
+                    <div class="flex justify-between"><span>每艘船出海營運成本：</span><strong class="font-mono text-slate-900">$250 / 艘/年</strong></div>
+                    <div class="flex justify-between"><span>全域捕撈船隊總數：</span><strong id="valDeepSeaShips" class="font-mono text-blue-600">0 艘</strong></div>
+                    <div class="flex justify-between"><span>當前單船捕獲預期：</span><strong id="valDeepSeaCatchPerShip" class="font-mono text-emerald-600">25.0 尾/艘</strong></div>
+                    <div class="flex justify-between"><span>年淨自然再生量：</span><strong id="valDeepSeaRegen" class="font-mono text-cyan-700">+260 尾/年</strong></div>
+                </div>
+            </div>
+
+            <!-- 3. 公地管理制度與管制 (Institutional Regime) -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="shield-check" class="w-5 h-5 text-indigo-600"></i>
+                        <h2 class="font-bold text-slate-900 text-sm">漁業公地管制與配額政策</h2>
+                    </div>
+                    <span id="regimeBadge" class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium border border-slate-200">開放自由競爭</span>
+                </div>
+                <div class="space-y-3 text-xs">
+                    <div class="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                        <div>
+                            <div class="font-bold text-slate-800">啟用漁業保護管制制度</div>
+                            <div class="text-[11px] text-slate-500">開啟後每隊受出海配額限制，防範過度捕撈</div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="chkInstitution" class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+
+                    <div id="quotaControls" class="space-y-2 opacity-50 pointer-events-none transition-opacity">
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-600">沿海出海配額上限：</span>
+                            <div class="flex items-center gap-1 font-mono font-bold">
+                                <input type="number" id="inputQuotaCoastal" value="3" min="0" max="15" class="w-14 px-1.5 py-0.5 text-center text-xs border border-slate-300 rounded">
+                                <span class="text-slate-500 text-[11px]">艘/隊</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-600">深海出海配額上限：</span>
+                            <div class="flex items-center gap-1 font-mono font-bold">
+                                <input type="number" id="inputQuotaDeepSea" value="4" min="0" max="15" class="w-14 px-1.5 py-0.5 text-center text-xs border border-slate-300 rounded">
+                                <span class="text-slate-500 text-[11px]">艘/隊</span>
+                            </div>
+                        </div>
+                        <div class="text-[10px] text-indigo-700 bg-indigo-50 p-2 rounded-lg border border-indigo-200">
+                            📜 根據制度經濟學 (Ruiz-Pérez 2011)，限制配額能維持最高可持續產量 (MSY)，防範公地崩潰！
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle Row: Player Decision Console -->
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="anchor" class="w-5 h-5 text-blue-600"></i>
+                        本年度船隊決策中心 (Fleet Allocation & Investment)
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5">您目前共擁有 <strong id="valMyTotalShips" class="text-blue-600 font-mono">6</strong> 艘漁船。請配置本年度前往「沿海」、「深海」或「港口待命」的船隻數量，以及是否增建或出售船隻。</p>
+                </div>
+                <div class="flex gap-2">
+                    <button id="btnPresetDeep" class="px-3 py-1.5 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200 transition">
+                        遠洋深海主力
+                    </button>
+                    <button id="btnPresetBalance" class="px-3 py-1.5 text-xs font-semibold bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-lg border border-cyan-200 transition">
+                        沿海深海平衡
+                    </button>
+                    <button id="btnPresetSafe" class="px-3 py-1.5 text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg border border-amber-200 transition">
+                        避風港保守停泊
+                    </button>
+                </div>
+            </div>
+
+            <!-- Fleet Allocation Sliders -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                
+                <!-- 沿海部署 -->
+                <div class="p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-sm text-slate-900 flex items-center gap-1.5">🏖️ 沿海捕撈船數</span>
+                        <span id="display-allocCoastal" class="font-mono text-emerald-700 font-bold text-base">3 艘</span>
+                    </div>
+                    <input type="range" id="slider-allocCoastal" min="0" max="15" value="3" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+                    <div class="text-[11px] text-slate-500 flex justify-between">
+                        <span>預估營運成本：</span>
+                        <strong id="cost-allocCoastal" class="font-mono text-slate-800">$450</strong>
+                    </div>
+                </div>
+
+                <!-- 深海部署 -->
+                <div class="p-4 rounded-xl border border-blue-200 bg-blue-50/40 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-sm text-slate-900 flex items-center gap-1.5">🌊 深海捕撈船數</span>
+                        <span id="display-allocDeepSea" class="font-mono text-blue-700 font-bold text-base">3 艘</span>
+                    </div>
+                    <input type="range" id="slider-allocDeepSea" min="0" max="15" value="3" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+                    <div class="text-[11px] text-slate-500 flex justify-between">
+                        <span>預估營運成本：</span>
+                        <strong id="cost-allocDeepSea" class="font-mono text-slate-800">$750</strong>
+                    </div>
+                </div>
+
+                <!-- 港口待命 -->
+                <div class="p-4 rounded-xl border border-amber-200 bg-amber-50/40 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-sm text-slate-900 flex items-center gap-1.5">⚓ 港口避風待命</span>
+                        <span id="display-allocHarbor" class="font-mono text-amber-700 font-bold text-base">0 艘</span>
+                    </div>
+                    <input type="range" id="slider-allocHarbor" min="0" max="15" value="0" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer slider-thumb" disabled>
+                    <div class="text-[11px] text-slate-500 flex justify-between">
+                        <span>預估待命成本：</span>
+                        <strong id="cost-allocHarbor" class="font-mono text-slate-800">$0</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fleet Capital Actions (Build & Scrap) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2 border-t border-slate-100">
+                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <div class="flex justify-between items-center text-xs font-semibold text-slate-800">
+                        <span>🔨 訂造新漁船 ($300 / 艘，次年完工投入)</span>
+                        <div class="flex items-center gap-2 font-mono">
+                            <input type="number" id="inputNewShips" value="0" min="0" max="10" class="w-16 px-2 py-1 text-center text-xs border border-slate-300 rounded">
+                            <span class="text-slate-500 text-xs">艘</span>
+                        </div>
+                    </div>
+                    <div class="text-[11px] text-slate-500 flex justify-between">
+                        <span>預估建造支出：</span>
+                        <strong id="valBuildExpense" class="font-mono text-slate-800">$0</strong>
+                    </div>
+                </div>
+
+                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <div class="flex justify-between items-center text-xs font-semibold text-slate-800">
+                        <span>💰 出售/拆解現有漁船 (殘值回收 $250 / 艘)</span>
+                        <div class="flex items-center gap-2 font-mono">
+                            <input type="number" id="inputScrapShips" value="0" min="0" max="10" class="w-16 px-2 py-1 text-center text-xs border border-slate-300 rounded">
+                            <span class="text-slate-500 text-xs">艘</span>
+                        </div>
+                    </div>
+                    <div class="text-[11px] text-slate-500 flex justify-between">
+                        <span>預估回收資金：</span>
+                        <strong id="valScrapRevenue" class="font-mono text-emerald-600">+$0</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Execution Action Bar -->
+            <div class="pt-3 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100">
+                <div class="text-xs text-slate-600 space-y-0.5">
+                    <div>本年度出海預估營運成本：<strong id="valTotalEstCost" class="text-slate-900 font-mono font-bold">$1,200</strong></div>
+                    <div class="text-[11px] text-slate-400">魚價統一收購標準：$20 / 尾 ｜ 存款利息 +8% ｜ 負債利息 -15%</div>
+                </div>
+
+                <div class="flex items-center gap-2.5">
+                    <button id="btnStep1" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold text-sm rounded-xl shadow-md shadow-blue-500/20 flex items-center gap-2 transition">
+                        <i data-lucide="play" class="w-4 h-4"></i>
+                        推進 1 年 (執行第 <span id="btnYearNum">1</span> 年出海)
+                    </button>
+                    <button id="btnStep5" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl border border-slate-300 transition">
+                        連續快進 5 年
+                    </button>
+                    <button id="btnReset" class="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs rounded-xl border border-rose-200 transition">
+                        重新開局
+                    </button>
+                    <button id="btnTriggerModal" class="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold text-xs rounded-xl border border-emerald-200 transition flex items-center gap-1.5">
+                        <i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i>
+                        回傳成績表單
+                    </button>
+                    <button id="btnExportCSV" class="px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 font-medium text-xs rounded-xl border border-slate-200 transition flex items-center gap-1.5">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        匯出數據 (CSV)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4-Team Competition Leaderboard -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <i data-lucide="trophy" class="w-4 h-4 text-amber-500"></i>
+                    四國商業漁業船隊排行榜 (Competitive Fleets Leaderboard)
+                </h3>
+                <span class="text-xs text-slate-400">總資產 = 銀行存款 + 船隻殘值 ($250/艘)</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="teamCardsContainer">
+                <!-- Team Cards rendered dynamically -->
+            </div>
+        </div>
+
+        <!-- Charts Dashboard (4 High-Contrast Bright Charts) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Chart 1: 海洋魚群生態走勢 -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                        <i data-lucide="activity" class="w-4 h-4 text-cyan-600"></i>
+                        海洋魚群生態存量走勢 (Fish Stock Dynamics)
+                    </h3>
+                    <span class="text-[10px] text-slate-400 font-mono">數量 (尾)</span>
+                </div>
+                <div class="h-64">
+                    <canvas id="chartFish"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 2: 捕撈魚獲 vs 全體船隊規模 -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                        <i data-lucide="ship" class="w-4 h-4 text-blue-600"></i>
+                        全海域年捕撈量 vs 全球總漁船數 (Harvest vs Fleet Size)
+                    </h3>
+                    <span class="text-[10px] text-slate-400 font-mono">魚獲尾數 / 船數</span>
+                </div>
+                <div class="h-64">
+                    <canvas id="chartCatchFleet"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 3: 四大船隊總資產競爭走勢 -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                        <i data-lucide="trending-up" class="w-4 h-4 text-emerald-600"></i>
+                        各船隊累積總資產競賽 (Total Assets Comparison)
+                    </h3>
+                    <span class="text-[10px] text-slate-400 font-mono">資產金額 ($)</span>
+                </div>
+                <div class="h-64">
+                    <canvas id="chartAssets"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 4: 單船捕撈效率 (Catch per Ship) -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                        <i data-lucide="gauge" class="w-4 h-4 text-amber-500"></i>
+                        兩大漁場單船平均捕撈效率 (Catch per Ship by Fishery)
+                    </h3>
+                    <span class="text-[10px] text-slate-400 font-mono">尾 / 艘/年</span>
+                </div>
+                <div class="h-64">
+                    <canvas id="chartCatchPerShip"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Historical Performance Table -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <i data-lucide="history" class="w-4 h-4 text-blue-600"></i>
+                    年度生態與經濟營運紀錄表 (Historical Annual Log)
+                </h3>
+                <span class="text-xs text-slate-400" id="tableRecordCount">共 0 筆紀錄</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                            <th class="p-2.5">年度</th>
+                            <th class="p-2.5 text-right">沿海魚量</th>
+                            <th class="p-2.5 text-right">深海魚量</th>
+                            <th class="p-2.5 text-right">海域總魚量</th>
+                            <th class="p-2.5 text-right">總捕撈量</th>
+                            <th class="p-2.5 text-right">全球總船數</th>
+                            <th class="p-2.5 text-right">您船隊船數</th>
+                            <th class="p-2.5 text-right">您流動現金</th>
+                            <th class="p-2.5 text-right">您總資產</th>
+                            <th class="p-2.5 text-center">生態狀態</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody" class="divide-y divide-slate-100 text-slate-700 font-mono">
+                        <tr>
+                            <td colspan="10" class="p-4 text-center text-slate-400 font-sans italic">尚無營運數據，請點擊「推進 1 年」開始出海捕撈</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Google 試算表成績回傳 Modal 彈跳視窗 -->
+    <div id="submitModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-200 animate-in fade-in duration-200">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-2xl">🎓</span>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">回傳 FishBanks 課堂經營成果</h3>
+                        <p class="text-xs text-slate-500">直連 Google 試算表（單一試算表・雙工作表架構）</p>
+                    </div>
+                </div>
+                <button onclick="closeSubmitModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+            </div>
+
+            <!-- 當前成績摘要預覽 -->
+            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-1.5 font-mono">
+                <div class="flex justify-between text-slate-600"><span>當前模擬進度：</span><strong id="modalSummaryYear" class="text-blue-600">第 1 年</strong></div>
+                <div class="flex justify-between text-slate-600"><span>您的最終總資產：</span><strong id="modalSummaryAssets" class="text-emerald-600 font-bold">$2,700</strong></div>
+                <div class="flex justify-between text-slate-600"><span>海域剩餘魚群率：</span><strong id="modalSummaryFish" class="text-cyan-700">100%</strong></div>
+                <div class="flex justify-between text-slate-600"><span>管制制度設定：</span><strong id="modalSummaryRegime" class="text-indigo-600">開放自由競爭</strong></div>
+            </div>
+
+            <!-- 雙工作表說明提示 -->
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-2.5 text-[11px] text-blue-900 space-y-1">
+                <div class="font-bold flex items-center gap-1.5 text-blue-800">
+                    <span>📋</span> 系統將自動登錄至老師試算表之雙工作表：
+                </div>
+                <div class="text-[10px] text-blue-700 leading-normal pl-4">
+                    1. <strong>「總成績與排行榜」</strong>：登記您的最終名次、總資產、期末現金與生態健康度<br>
+                    2. <strong>「歷年營運歷程明細」</strong>：完整記錄您每年之決策船數（沿海/深海/港口/買賣船）、漁場成本、漁獲收入與淨利
+                </div>
+            </div>
+
+            <!-- 學生輸入表單 -->
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">班級代號 (Class)</label>
+                    <input type="text" id="inputClass" placeholder="例如：企管三甲、EMBA 2026" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">學號 (Student ID)</label>
+                        <input type="text" id="inputId" placeholder="例如：B110304001" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">姓名 (Student Name)</label>
+                        <input type="text" id="inputName" placeholder="例如：王小明" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <!-- Google Apps Script Webhook 網址設定 (可自由替換) -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block font-semibold text-slate-700">Google Apps Script Web App URL (Webhook)</label>
+                        <button onclick="toggleWebhookConfig()" class="text-[10px] text-blue-600 hover:underline">展開/自訂網址</button>
+                    </div>
+                    <input type="text" id="inputWebhookUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-[11px] font-mono text-slate-600 bg-slate-50 focus:bg-white focus:outline-none">
+                    <p class="text-[10px] text-slate-400 mt-0.5">預設已自動儲存於瀏覽器 LocalStorage，學生輸入一次後免再重複貼上。</p>
+                </div>
+            </div>
+
+            <!-- 操作與提示訊息 -->
+            <div class="pt-2 space-y-2">
+                <button id="btnSubmitScore" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 transition">
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                    確認回傳總成績與歷程明細至 Google 試算表
+                </button>
+                <div id="submitResultMsg" class="text-xs text-center font-medium min-h-[1.25rem]"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-200 bg-white py-4 px-4 sm:px-6 text-center text-xs text-slate-500">
+        <p>FishBanks: A Renewable Resource Management Simulation・純前端架構 + Google Sheets API Webhook 串接</p>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="engine.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
